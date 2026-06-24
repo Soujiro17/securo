@@ -122,6 +122,11 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    networks:
+      - internal
+      - dokploy-network
+    labels:
+      - "traefik.docker.network=dokploy-network"
 
   celery-worker:
     <<: *backend-base
