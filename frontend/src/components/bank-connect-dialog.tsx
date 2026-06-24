@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { PluggyConnect } from 'react-pluggy-connect'
+import { FintocConnectWidget } from '@/hooks/use-fintoc-widget'
 import { connections } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
@@ -73,6 +74,16 @@ export function BankConnectDialog({
   }
 
   if (!open || !connectToken) return null
+
+  if (provider === 'fintoc') {
+    return (
+      <FintocConnectWidget
+        widgetToken={connectToken}
+        onSuccess={(linkToken) => handleSuccess({ item: { id: linkToken } })}
+        onExit={handleClose}
+      />
+    )
+  }
 
   return (
     <PluggyConnect

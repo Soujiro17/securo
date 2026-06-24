@@ -598,6 +598,9 @@
       },
       "simplefin": {
         "description": "Банки США и других стран через SimpleFIN Bridge"
+      },
+      "fintoc": {
+        "description": "Подключите чилийские банковские счета — Banco de Chile, Santander, BCI и другие"
       }
     }
   },
