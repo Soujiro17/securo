@@ -1,0 +1,1 @@
+uv tool run --from headroom-ai --with "headroom-ai[proxy]" headroom wrap claude

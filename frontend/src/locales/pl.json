@@ -634,6 +634,9 @@
       },
       "simplefin": {
         "description": "Banki w USA i międzynarodowe przez SimpleFIN Bridge"
+      },
+      "fintoc": {
+        "description": "Połącz chilijski konto bankowe — Banco de Chile, Santander, BCI i inne"
       }
     }
   },

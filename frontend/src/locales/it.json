@@ -598,6 +598,9 @@
       },
       "simplefin": {
         "description": "Banche statunitensi e internazionali tramite SimpleFIN Bridge"
+      },
+      "fintoc": {
+        "description": "Collega conti bancari cileni — Banco de Chile, Santander, BCI e altri"
       }
     }
   },
