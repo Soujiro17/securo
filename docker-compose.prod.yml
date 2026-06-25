@@ -67,7 +67,9 @@ x-backend-env: &backend-env
   AGENTS_EMBEDDING_MODEL: ${AGENTS_EMBEDDING_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
 
 x-backend-base: &backend-base
-  image: ghcr.io/securo-finance/securo-backend:latest
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
   environment: *backend-env
   depends_on:
     db: { condition: service_healthy }
@@ -114,7 +116,9 @@ services:
       - "8000"
 
   frontend:
-    image: ghcr.io/securo-finance/securo-frontend:latest
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
     expose:
       - "8080"
     environment:
