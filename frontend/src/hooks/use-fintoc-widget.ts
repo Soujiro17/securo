@@ -13,6 +13,7 @@ declare global {
         product: string
         holderType: string
         country: string
+        callbackUrl: string
         onSuccess: (data: { link_token: string }) => void
         onExit: () => void
         onError: () => void
@@ -52,6 +53,7 @@ export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetPr
           product: 'movements',
           holderType: 'individual',
           country: 'cl',
+          callbackUrl: window.location.origin,
           onSuccess: (data: { link_token: string }) => onSuccessRef.current(data.link_token),
           onExit: () => onExitRef.current(),
           onError: () => onExitRef.current(),
