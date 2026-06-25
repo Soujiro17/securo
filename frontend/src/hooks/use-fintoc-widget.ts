@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 interface FintocConnectWidgetProps {
+  widgetToken: string
   onSuccess: (linkToken: string) => void
   onExit: () => void
 }
@@ -10,11 +11,9 @@ declare global {
     Fintoc?: {
       create: (options: {
         publicKey: string
+        widgetToken: string
         product: string
-        holderType: string
-        country: string
-        webhookUrl: string
-        onSuccess: (data: { link_token: string }) => void
+        onSuccess: (data: { exchange_token: string }) => void
         onExit: () => void
         onError: () => void
       }) => { open: () => void; destroy?: () => void }
@@ -33,7 +32,7 @@ function loadFintocScript(): Promise<void> {
   })
 }
 
-export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetProps) {
+export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocConnectWidgetProps) {
   const onSuccessRef = useRef(onSuccess)
   const onExitRef = useRef(onExit)
 
@@ -50,11 +49,9 @@ export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetPr
         if (!window.Fintoc) return
         widget = window.Fintoc.create({
           publicKey: import.meta.env.VITE_FINTOC_PUBLIC_KEY ?? '',
+          widgetToken,
           product: 'movements',
-          holderType: 'individual',
-          country: 'cl',
-          webhookUrl: import.meta.env.VITE_FINTOC_WEBHOOK_URL ?? 'https://example.com',
-          onSuccess: (data: { link_token: string }) => onSuccessRef.current(data.link_token),
+          onSuccess: (data: { exchange_token: string }) => onSuccessRef.current(data.exchange_token),
           onExit: () => onExitRef.current(),
           onError: () => onExitRef.current(),
         })
@@ -68,7 +65,7 @@ export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetPr
     return () => {
       widget?.destroy?.()
     }
-  }, [])
+  }, [widgetToken])
 
   return null
 }
