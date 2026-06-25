@@ -13,7 +13,7 @@ declare global {
         publicKey: string
         widgetToken: string
         product: string
-        onSuccess: (data: { link_token: string }) => void
+        onSuccess: (data: { exchange_token: string }) => void
         onExit: () => void
         onError: () => void
       }) => { open: () => void; destroy?: () => void }
@@ -43,7 +43,7 @@ export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocCo
           publicKey: import.meta.env.VITE_FINTOC_PUBLIC_KEY ?? '',
           widgetToken,
           product: 'movements',
-          onSuccess: ({ link_token }) => onSuccess(link_token),
+          onSuccess: ({ exchange_token }) => onSuccess(exchange_token),
           onExit,
           onError: onExit,
         })

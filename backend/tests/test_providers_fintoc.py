@@ -152,12 +152,12 @@ async def test_get_oauth_url_raises_not_implemented():
 async def test_create_connect_token_new_connection():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
-        assert "/widget_tokens" in str(request.url)
-        body = request.read()
+        assert "/link_intents" in str(request.url)
         import json
-        data = json.loads(body)
-        assert data["mode"] == "link"
+        data = json.loads(request.read())
         assert data["product"] == "movements"
+        assert data["country"] == "cl"
+        assert data["holder_type"] == "individual"
         return httpx.Response(200, json={"widget_token": "wt_sandbox_abc123"})
 
     provider = FintocProvider()
@@ -167,18 +167,16 @@ async def test_create_connect_token_new_connection():
 
 
 @pytest.mark.asyncio
-async def test_create_connect_token_refresh_mode():
+async def test_create_connect_token_ignores_item_id():
+    """Reconnect creates a fresh link intent — item_id is not forwarded."""
     def handler(request: httpx.Request) -> httpx.Response:
-        import json
-        data = json.loads(request.read())
-        assert data["mode"] == "refresh"
-        assert data["link_intent_id"] == "lt_existing_token"
-        return httpx.Response(200, json={"widget_token": "wt_sandbox_refresh"})
+        assert "/link_intents" in str(request.url)
+        return httpx.Response(200, json={"widget_token": "wt_sandbox_reconnect"})
 
     provider = FintocProvider()
     with _patched_client(handler):
         result = await provider.create_connect_token("user-1", item_id="lt_existing_token")
-    assert result.access_token == "wt_sandbox_refresh"
+    assert result.access_token == "wt_sandbox_reconnect"
 
 
 # ---- handle_oauth_callback --------------------------------------------------
@@ -186,32 +184,39 @@ async def test_create_connect_token_refresh_mode():
 
 @pytest.mark.asyncio
 async def test_handle_oauth_callback_success():
+    """exchange_token → POST /links → Link object with link_token + accounts."""
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "GET"
-        assert "/accounts" in str(request.url)
-        assert request.url.params.get("link_token") == "lt_test_link"
+        assert request.method == "POST"
+        assert "/links" in str(request.url)
+        import json
+        body = json.loads(request.read())
+        assert body["exchange_token"] == "et_test_exchange"
         return httpx.Response(
             200,
-            json=[
-                {
-                    "id": "acc-cl-1",
-                    "name": "Cuenta Vista",
-                    "official_name": "Cuenta Vista BancoEstado",
-                    "type": "vista_account",
-                    "currency": "CLP",
-                    "balance": {"available": 350000, "current": 350000},
-                    "institution": {"name": "BancoEstado"},
-                }
-            ],
+            json={
+                "id": "link_abc123",
+                "link_token": "link_abc123_token_xyz",
+                "institution": {"name": "BancoEstado"},
+                "accounts": [
+                    {
+                        "id": "acc-cl-1",
+                        "name": "Cuenta Vista",
+                        "official_name": "Cuenta Vista BancoEstado",
+                        "type": "vista_account",
+                        "currency": "CLP",
+                        "balance": {"available": 350000, "current": 350000},
+                    }
+                ],
+            },
         )
 
     provider = FintocProvider()
     with _patched_client(handler):
-        conn = await provider.handle_oauth_callback("lt_test_link")
+        conn = await provider.handle_oauth_callback("et_test_exchange")
 
-    assert conn.external_id == "lt_test_link"
+    assert conn.external_id == "link_abc123"
     assert conn.institution_name == "BancoEstado"
-    assert conn.credentials["link_token"] == "lt_test_link"
+    assert conn.credentials["link_token"] == "link_abc123_token_xyz"
     assert len(conn.accounts) == 1
     acc = conn.accounts[0]
     assert acc.external_id == "acc-cl-1"
@@ -227,7 +232,7 @@ async def test_handle_oauth_callback_invalid_token_raises_session_expired():
     provider = FintocProvider()
     with _patched_client(handler):
         with pytest.raises(SessionExpiredError):
-            await provider.handle_oauth_callback("lt_bad_token")
+            await provider.handle_oauth_callback("et_bad_exchange")
 
 
 # ---- get_accounts -----------------------------------------------------------

@@ -30,13 +30,14 @@ _DEFAULT_SYNC_DAYS = 90
 def _map_account_type(fintoc_type: str) -> str:
     """Map Fintoc account type string to Securo account type.
 
-    vista_account (Cuenta Vista / Cuenta RUT) is Chile's most common demand-deposit
-    account — structurally equivalent to a checking account.
+    vista_account / sight_account (Cuenta Vista / Cuenta RUT) is Chile's most common
+    demand-deposit account — structurally equivalent to a checking account.
     """
     mapping = {
         "checking_account": "checking",
         "savings_account": "savings",
         "vista_account": "checking",
+        "sight_account": "checking",
     }
     return mapping.get(fintoc_type, "checking")
 
@@ -120,58 +121,45 @@ class FintocProvider(BankProvider):
         client_user_id: str,
         item_id: str | None = None,
     ) -> ConnectTokenData:
-        """Create a FintocLink widget token.
+        """Create a FintocLink widget token via POST /link_intents.
 
-        When item_id (a Fintoc link_token) is provided, the widget opens in refresh
-        mode so the user can re-authenticate an existing connection.
+        item_id is unused for now — Fintoc's link_intents API does not support a
+        direct refresh mode; re-authentication happens by creating a fresh intent.
         """
-        if item_id:
-            payload = {
-                "mode": "refresh",
-                "link_intent_id": item_id,
-                "product": "movements",
-            }
-        else:
-            payload = {
-                "mode": "link",
-                "product": "movements",
-            }
+        payload = {
+            "product": "movements",
+            "country": "cl",
+            "holder_type": "individual",
+        }
         async with httpx.AsyncClient(headers=self._get_headers(), timeout=30) as client:
-            response = await client.post(f"{FINTOC_API_BASE}/widget_tokens", json=payload)
+            response = await client.post(f"{FINTOC_API_BASE}/link_intents", json=payload)
             self._raise_for_fintoc(response)
             data = response.json()
         return ConnectTokenData(access_token=data["widget_token"])
 
     async def handle_oauth_callback(self, code: str) -> ConnectionData:
-        """Exchange a FintocLink link_token for a ConnectionData.
+        """Exchange a FintocLink exchange_token for a ConnectionData.
 
-        `code` is the link_token returned by the FintocLink widget onSuccess callback.
-        Fetches accounts to obtain institution name and build the initial account list.
+        `code` is the exchange_token returned by the FintocLink widget onSuccess
+        callback. POST /links exchanges it for the long-lived link_token and returns
+        the full Link object (including accounts and institution) in one call.
         """
         async with httpx.AsyncClient(headers=self._get_headers(), timeout=30) as client:
-            response = await client.get(
-                f"{FINTOC_API_BASE}/accounts",
-                params={"link_token": code},
+            response = await client.post(
+                f"{FINTOC_API_BASE}/links",
+                json={"exchange_token": code},
             )
             self._raise_for_fintoc(response)
-            accounts_data = response.json()
+            link = response.json()
 
-        accounts = [_build_account_data(acc) for acc in accounts_data]
-
-        # Derive institution name from the first account's holder or institution info.
-        institution_name = "Chilean Bank"
-        if accounts_data:
-            first = accounts_data[0]
-            institution_name = (
-                (first.get("institution") or {}).get("name")
-                or first.get("holder_name")
-                or institution_name
-            )
+        link_token: str = link["link_token"]
+        institution_name: str = (link.get("institution") or {}).get("name") or "Chilean Bank"
+        accounts = [_build_account_data(acc) for acc in link.get("accounts") or []]
 
         return ConnectionData(
-            external_id=code,
+            external_id=link["id"],
             institution_name=institution_name,
-            credentials={"link_token": code},
+            credentials={"link_token": link_token},
             accounts=accounts,
         )
 
