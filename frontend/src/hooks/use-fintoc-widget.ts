@@ -13,7 +13,7 @@ declare global {
         product: string
         holderType: string
         country: string
-        callbackUrl: string
+        webhookUrl: string
         onSuccess: (data: { link_token: string }) => void
         onExit: () => void
         onError: () => void
@@ -53,7 +53,7 @@ export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetPr
           product: 'movements',
           holderType: 'individual',
           country: 'cl',
-          callbackUrl: window.location.origin,
+          webhookUrl: import.meta.env.VITE_FINTOC_WEBHOOK_URL ?? 'https://example.com',
           onSuccess: (data: { link_token: string }) => onSuccessRef.current(data.link_token),
           onExit: () => onExitRef.current(),
           onError: () => onExitRef.current(),
