@@ -27,7 +27,7 @@ export function BankConnectDialog({
   const [connectToken, setConnectToken] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open) {
+    if (!open || provider === 'fintoc') {
       setConnectToken(null)
       return
     }
@@ -73,17 +73,16 @@ export function BankConnectDialog({
     onClose()
   }
 
-  if (!open || !connectToken) return null
-
-  if (provider === 'fintoc') {
+  if (provider === 'fintoc' && open) {
     return (
       <FintocConnectWidget
-        widgetToken={connectToken}
         onSuccess={(linkToken) => handleSuccess({ item: { id: linkToken } })}
         onExit={handleClose}
       />
     )
   }
+
+  if (!open || !connectToken) return null
 
   return (
     <PluggyConnect
