@@ -1,35 +1,9 @@
 import { useEffect, useRef } from 'react'
+import { getFintoc } from '@fintoc/fintoc-js'
 
 interface FintocConnectWidgetProps {
   onSuccess: (linkToken: string) => void
   onExit: () => void
-}
-
-declare global {
-  interface Window {
-    Fintoc?: {
-      create: (options: {
-        publicKey: string
-        product?: string
-        holderType?: string
-        country?: string
-        onSuccess: (data: { link_token: string }) => void
-        onExit: () => void
-        onError: () => void
-      }) => { open: () => void; destroy?: () => void }
-    }
-  }
-}
-
-function loadFintocScript(): Promise<void> {
-  if (window.Fintoc) return Promise.resolve()
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://js.fintoc.com/v1'
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Failed to load FintocLink script'))
-    document.head.appendChild(script)
-  })
 }
 
 export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetProps) {
@@ -42,22 +16,36 @@ export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetPr
   })
 
   useEffect(() => {
+    let active = true
     let widget: { open: () => void; destroy?: () => void } | null = null
 
-    loadFintocScript()
-      .then(() => {
-        if (!window.Fintoc) return
+    getFintoc()
+      .then((Fintoc) => {
+        if (!active || !Fintoc) return
         const pubKey = import.meta.env.VITE_FINTOC_PUBLIC_KEY ?? ''
-        console.log('[FintocLink] Initializing widget with publicKey:', pubKey)
+        const webhookUrl = import.meta.env.VITE_FINTOC_WEBHOOK_URL || 'https://webhook.securo.com'
+
+        console.log('[FintocLink] Initializing widget with publicKey:', pubKey, 'and webhookUrl:', webhookUrl)
         if (!pubKey) {
           console.warn('[FintocLink] WARNING: VITE_FINTOC_PUBLIC_KEY is undefined or empty!')
         }
-        widget = window.Fintoc.create({
+
+        widget = Fintoc.create({
           publicKey: pubKey,
           product: 'movements',
           holderType: 'individual',
           country: 'cl',
-          onSuccess: (data: { link_token: string }) => onSuccessRef.current(data.link_token),
+          webhookUrl,
+          onSuccess: (data: any) => {
+            // Fintoc passes a link object where token/link_token contains the link_token
+            const token = data?.token || data?.link_token
+            if (token) {
+              onSuccessRef.current(token)
+            } else {
+              console.error('[FintocLink] Failed to find link token in onSuccess payload:', data)
+              onExitRef.current()
+            }
+          },
           onExit: () => onExitRef.current(),
           onError: () => onExitRef.current(),
         })
@@ -69,9 +57,11 @@ export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetPr
       })
 
     return () => {
+      active = false
       widget?.destroy?.()
     }
   }, [])
 
   return null
 }
+
