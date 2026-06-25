@@ -46,6 +46,8 @@ async def create_connect_token(
         return ConnectTokenResponse(**token_data)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except SessionExpiredError as e:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -193,11 +195,12 @@ async def get_reconnect_token(
     if not connection:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connection not found")
 
-    item_id = connection.credentials.get("item_id") if connection.credentials else None
+    creds = connection.credentials or {}
+    item_id = creds.get("item_id") or creds.get("link_token")
     if not item_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Connection has no item_id for reconnection",
+            detail="Connection has no reconnect identifier",
         )
 
     try:
