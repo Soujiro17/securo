@@ -125,6 +125,7 @@ services:
       BACKEND_URL: http://backend:8000
       FRONTEND_URL: http://localhost:3000
       APP_VERSION_ROOT: /workspace
+      VITE_FINTOC_PUBLIC_KEY: ${VITE_FINTOC_PUBLIC_KEY:-}
     depends_on:
       - backend
     volumes:
