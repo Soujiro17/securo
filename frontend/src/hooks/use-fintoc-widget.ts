@@ -12,7 +12,7 @@ declare global {
       create: (options: {
         publicKey: string
         widgetToken: string
-        product: string
+        product?: string
         onSuccess: (data: { exchange_token: string }) => void
         onExit: () => void
         onError: () => void
@@ -47,10 +47,14 @@ export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocCo
     loadFintocScript()
       .then(() => {
         if (!window.Fintoc) return
+        const pubKey = import.meta.env.VITE_FINTOC_PUBLIC_KEY ?? ''
+        console.log('[FintocLink] Initializing widget with publicKey:', pubKey, 'and widgetToken:', widgetToken)
+        if (!pubKey) {
+          console.warn('[FintocLink] WARNING: VITE_FINTOC_PUBLIC_KEY is undefined or empty!')
+        }
         widget = window.Fintoc.create({
-          publicKey: import.meta.env.VITE_FINTOC_PUBLIC_KEY ?? '',
+          publicKey: pubKey,
           widgetToken,
-          product: 'movements',
           onSuccess: (data: { exchange_token: string }) => onSuccessRef.current(data.exchange_token),
           onExit: () => onExitRef.current(),
           onError: () => onExitRef.current(),
