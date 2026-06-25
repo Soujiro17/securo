@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface FintocConnectWidgetProps {
   widgetToken: string
@@ -33,6 +33,14 @@ function loadFintocScript(): Promise<void> {
 }
 
 export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocConnectWidgetProps) {
+  const onSuccessRef = useRef(onSuccess)
+  const onExitRef = useRef(onExit)
+
+  useEffect(() => {
+    onSuccessRef.current = onSuccess
+    onExitRef.current = onExit
+  })
+
   useEffect(() => {
     let widget: { open: () => void; destroy?: () => void } | null = null
 
@@ -43,21 +51,21 @@ export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocCo
           publicKey: import.meta.env.VITE_FINTOC_PUBLIC_KEY ?? '',
           widgetToken,
           product: 'movements',
-          onSuccess: ({ exchange_token }) => onSuccess(exchange_token),
-          onExit,
-          onError: onExit,
+          onSuccess: ({ exchange_token }) => onSuccessRef.current(exchange_token),
+          onExit: () => onExitRef.current(),
+          onError: () => onExitRef.current(),
         })
         widget.open()
       })
       .catch((err) => {
         console.error('[FintocLink]', err)
-        onExit()
+        onExitRef.current()
       })
 
     return () => {
       widget?.destroy?.()
     }
-  }, [widgetToken, onSuccess, onExit])
+  }, [widgetToken])
 
   return null
 }
