@@ -121,45 +121,39 @@ class FintocProvider(BankProvider):
         client_user_id: str,
         item_id: str | None = None,
     ) -> ConnectTokenData:
-        """Create a FintocLink widget token via POST /link_intents.
+        """Create a FintocLink widget token.
 
-        item_id is unused for now — Fintoc's link_intents API does not support a
-        direct refresh mode; re-authentication happens by creating a fresh intent.
+        Stubbed for movements flow since it loads with public key on the client.
         """
-        payload = {
-            "product": "movements",
-            "country": "cl",
-            "holder_type": "individual",
-        }
-        async with httpx.AsyncClient(headers=self._get_headers(), timeout=30) as client:
-            response = await client.post(f"{FINTOC_API_BASE}/link_intents", json=payload)
-            self._raise_for_fintoc(response)
-            data = response.json()
-        return ConnectTokenData(access_token=data["widget_token"])
+        return ConnectTokenData(access_token="")
 
     async def handle_oauth_callback(self, code: str) -> ConnectionData:
-        """Exchange a FintocLink exchange_token for a ConnectionData.
+        """Process the FintocLink link_token directly.
 
-        `code` is the exchange_token returned by the FintocLink widget onSuccess
-        callback. POST /links exchanges it for the long-lived link_token and returns
-        the full Link object (including accounts and institution) in one call.
+        `code` is the link_token returned by the FintocLink widget onSuccess
+        callback. We fetch accounts directly using this token to retrieve accounts
+        and institution name.
         """
         async with httpx.AsyncClient(headers=self._get_headers(), timeout=30) as client:
-            response = await client.post(
-                f"{FINTOC_API_BASE}/links",
-                json={"exchange_token": code},
+            response = await client.get(
+                f"{FINTOC_API_BASE}/accounts",
+                params={"link_token": code},
             )
             self._raise_for_fintoc(response)
-            link = response.json()
+            raw_accounts = response.json()
 
-        link_token: str = link["link_token"]
-        institution_name: str = (link.get("institution") or {}).get("name") or "Chilean Bank"
-        accounts = [_build_account_data(acc) for acc in link.get("accounts") or []]
+        accounts = [_build_account_data(acc) for acc in raw_accounts]
+
+        institution_name = "Chilean Bank"
+        if raw_accounts:
+            first_acc = raw_accounts[0]
+            inst = first_acc.get("institution") or {}
+            institution_name = inst.get("name") or "Chilean Bank"
 
         return ConnectionData(
-            external_id=link["id"],
+            external_id=code,
             institution_name=institution_name,
-            credentials={"link_token": link_token},
+            credentials={"link_token": code},
             accounts=accounts,
         )
 

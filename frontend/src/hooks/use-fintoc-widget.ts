@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 
 interface FintocConnectWidgetProps {
-  widgetToken: string
   onSuccess: (linkToken: string) => void
   onExit: () => void
 }
@@ -11,9 +10,10 @@ declare global {
     Fintoc?: {
       create: (options: {
         publicKey: string
-        widgetToken: string
         product?: string
-        onSuccess: (data: { exchange_token: string }) => void
+        holderType?: string
+        country?: string
+        onSuccess: (data: { link_token: string }) => void
         onExit: () => void
         onError: () => void
       }) => { open: () => void; destroy?: () => void }
@@ -32,7 +32,7 @@ function loadFintocScript(): Promise<void> {
   })
 }
 
-export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocConnectWidgetProps) {
+export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetProps) {
   const onSuccessRef = useRef(onSuccess)
   const onExitRef = useRef(onExit)
 
@@ -48,14 +48,16 @@ export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocCo
       .then(() => {
         if (!window.Fintoc) return
         const pubKey = import.meta.env.VITE_FINTOC_PUBLIC_KEY ?? ''
-        console.log('[FintocLink] Initializing widget with publicKey:', pubKey, 'and widgetToken:', widgetToken)
+        console.log('[FintocLink] Initializing widget with publicKey:', pubKey)
         if (!pubKey) {
           console.warn('[FintocLink] WARNING: VITE_FINTOC_PUBLIC_KEY is undefined or empty!')
         }
         widget = window.Fintoc.create({
           publicKey: pubKey,
-          widgetToken,
-          onSuccess: (data: { exchange_token: string }) => onSuccessRef.current(data.exchange_token),
+          product: 'movements',
+          holderType: 'individual',
+          country: 'cl',
+          onSuccess: (data: { link_token: string }) => onSuccessRef.current(data.link_token),
           onExit: () => onExitRef.current(),
           onError: () => onExitRef.current(),
         })
@@ -69,7 +71,7 @@ export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocCo
     return () => {
       widget?.destroy?.()
     }
-  }, [widgetToken])
+  }, [])
 
   return null
 }
