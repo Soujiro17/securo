@@ -126,6 +126,7 @@ services:
       FRONTEND_URL: http://localhost:3000
       APP_VERSION_ROOT: /workspace
       VITE_FINTOC_PUBLIC_KEY: ${VITE_FINTOC_PUBLIC_KEY:-}
+      VITE_FINTOC_WEBHOOK_URL: ${VITE_FINTOC_WEBHOOK_URL:-}
     depends_on:
       - backend
     volumes:

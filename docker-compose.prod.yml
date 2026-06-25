@@ -121,6 +121,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_FINTOC_PUBLIC_KEY: ${VITE_FINTOC_PUBLIC_KEY:-}
+        VITE_FINTOC_WEBHOOK_URL: ${VITE_FINTOC_WEBHOOK_URL:-}
     expose:
       - "8080"
     environment:
