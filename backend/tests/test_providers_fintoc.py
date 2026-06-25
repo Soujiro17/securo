@@ -149,35 +149,22 @@ async def test_get_oauth_url_raises_not_implemented():
 
 
 @pytest.mark.asyncio
-async def test_create_connect_token_returns_empty_token_with_no_http_calls():
-    """Movements widget needs no server-side token — create_connect_token is a no-op."""
-    calls: list[httpx.Request] = []
-
+async def test_create_connect_token_success():
+    """create_connect_token calls POST /link_intents and returns widget_token."""
+    import json
     def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(request)
-        return httpx.Response(200, json={})
+        assert request.method == "POST"
+        assert "/link_intents" in str(request.url)
+        body = request.read().decode("utf-8")
+        data = json.loads(body)
+        assert data["product"] == "movements"
+        assert data["country"] == "cl"
+        return httpx.Response(201, json={"widget_token": "wt_test_widget_token"})
 
     provider = FintocProvider()
     with _patched_client(handler):
         result = await provider.create_connect_token("user-1")
-    assert result.access_token == ""
-    assert len(calls) == 0
-
-
-@pytest.mark.asyncio
-async def test_create_connect_token_ignores_item_id():
-    """No HTTP calls are made regardless of item_id."""
-    calls: list[httpx.Request] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(request)
-        return httpx.Response(200, json={})
-
-    provider = FintocProvider()
-    with _patched_client(handler):
-        result = await provider.create_connect_token("user-1", item_id="lt_existing_token")
-    assert result.access_token == ""
-    assert len(calls) == 0
+    assert result.access_token == "wt_test_widget_token"
 
 
 # ---- handle_oauth_callback --------------------------------------------------
@@ -185,31 +172,38 @@ async def test_create_connect_token_ignores_item_id():
 
 @pytest.mark.asyncio
 async def test_handle_oauth_callback_success():
-    """link_token → GET /accounts?link_token=… → ConnectionData with accounts."""
+    """exchange_token -> POST /links -> ConnectionData with accounts."""
+    import json
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "GET"
-        assert "/accounts" in str(request.url)
-        assert request.url.params.get("link_token") == "lt_test_link_token"
+        assert request.method == "POST"
+        assert "/links" in str(request.url)
+        body = request.read().decode("utf-8")
+        data = json.loads(body)
+        assert data["exchange_token"] == "ext_test_exchange_token"
         return httpx.Response(
-            200,
-            json=[
-                {
-                    "id": "acc-cl-1",
-                    "name": "Cuenta Vista",
-                    "official_name": "Cuenta Vista BancoEstado",
-                    "type": "vista_account",
-                    "currency": "CLP",
-                    "balance": {"available": 350000, "current": 350000},
-                    "institution": {"name": "BancoEstado"},
-                }
-            ],
+            201,
+            json={
+                "id": "lnk_test_link_id",
+                "link_token": "lt_test_link_token",
+                "institution": {"name": "BancoEstado"},
+                "accounts": [
+                    {
+                        "id": "acc-cl-1",
+                        "name": "Cuenta Vista",
+                        "official_name": "Cuenta Vista BancoEstado",
+                        "type": "vista_account",
+                        "currency": "CLP",
+                        "balance": {"available": 350000, "current": 350000},
+                    }
+                ],
+            },
         )
 
     provider = FintocProvider()
     with _patched_client(handler):
-        conn = await provider.handle_oauth_callback("lt_test_link_token")
+        conn = await provider.handle_oauth_callback("ext_test_exchange_token")
 
-    assert conn.external_id == "lt_test_link_token"
+    assert conn.external_id == "lnk_test_link_id"
     assert conn.institution_name == "BancoEstado"
     assert conn.credentials["link_token"] == "lt_test_link_token"
     assert len(conn.accounts) == 1
@@ -224,21 +218,25 @@ async def test_handle_oauth_callback_fallback_institution_name():
     """Falls back to 'Chilean Bank' when institution field is absent."""
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
-            200,
-            json=[
-                {
-                    "id": "acc-1",
-                    "name": "Cuenta",
-                    "type": "checking_account",
-                    "currency": "CLP",
-                    "balance": {"available": 1000},
-                }
-            ],
+            201,
+            json={
+                "id": "lnk_1",
+                "link_token": "lt_1",
+                "accounts": [
+                    {
+                        "id": "acc-1",
+                        "name": "Cuenta",
+                        "type": "checking_account",
+                        "currency": "CLP",
+                        "balance": {"available": 1000},
+                    }
+                ],
+            },
         )
 
     provider = FintocProvider()
     with _patched_client(handler):
-        conn = await provider.handle_oauth_callback("lt_no_institution")
+        conn = await provider.handle_oauth_callback("ext_no_institution")
 
     assert conn.institution_name == "Chilean Bank"
 
@@ -251,7 +249,7 @@ async def test_handle_oauth_callback_invalid_token_raises_session_expired():
     provider = FintocProvider()
     with _patched_client(handler):
         with pytest.raises(SessionExpiredError):
-            await provider.handle_oauth_callback("lt_bad_token")
+            await provider.handle_oauth_callback("ext_bad_token")
 
 
 # ---- get_accounts -----------------------------------------------------------
