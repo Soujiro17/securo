@@ -175,10 +175,10 @@ async def test_create_connect_token_success():
 
 @pytest.mark.asyncio
 async def test_handle_oauth_callback_success():
-    """exchange_token -> POST /accounts/exchange -> ConnectionData with accounts."""
+    """exchange_token -> GET /links/exchange -> ConnectionData with accounts."""
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "POST"
-        assert "/accounts/exchange" in str(request.url)
+        assert request.method == "GET"
+        assert "/links/exchange" in str(request.url)
         assert request.url.params.get("exchange_token") == "lt_test_link_token"
         return httpx.Response(
             200,
@@ -217,8 +217,8 @@ async def test_handle_oauth_callback_success():
 async def test_handle_oauth_callback_fallback_institution_name():
     """Falls back to 'Chilean Bank' when institution field is absent."""
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "POST"
-        assert "/accounts/exchange" in str(request.url)
+        assert request.method == "GET"
+        assert "/links/exchange" in str(request.url)
         return httpx.Response(
             200,
             json={
