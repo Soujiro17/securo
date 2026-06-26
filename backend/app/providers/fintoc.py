@@ -143,8 +143,8 @@ class FintocProvider(BankProvider):
         full Link object containing the link_token, accounts, and institution.
         """
         async with httpx.AsyncClient(headers=self._get_headers(), timeout=30) as client:
-            response = await client.post(
-                f"{FINTOC_API_BASE}/accounts/exchange",
+            response = await client.get(
+                f"{FINTOC_API_BASE}/links/exchange",
                 params={"exchange_token": code},
             )
             self._raise_for_fintoc(response)
