@@ -37,8 +37,8 @@ export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetPr
           country: 'cl',
           webhookUrl,
           onSuccess: (data: any) => {
-            // Fintoc passes a link object where token/link_token contains the link_token
-            const token = data?.token || data?.link_token
+            // Fintoc passes a link object where the token is typically in the id or token field
+            const token = data?.id || data?.token || data?.link_token || data?.link?.id
             if (token) {
               onSuccessRef.current(token)
             } else {
