@@ -2,11 +2,12 @@ import { useEffect, useRef } from 'react'
 import { getFintoc } from '@fintoc/fintoc-js'
 
 interface FintocConnectWidgetProps {
+  widgetToken: string
   onSuccess: (linkToken: string) => void
   onExit: () => void
 }
 
-export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetProps) {
+export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocConnectWidgetProps) {
   const onSuccessRef = useRef(onSuccess)
   const onExitRef = useRef(onExit)
 
@@ -22,27 +23,17 @@ export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetPr
     getFintoc()
       .then((Fintoc) => {
         if (!active || !Fintoc) return
-        const pubKey = import.meta.env.VITE_FINTOC_PUBLIC_KEY ?? ''
-        const webhookUrl = import.meta.env.VITE_FINTOC_WEBHOOK_URL || 'https://webhook.securo.com'
 
-        console.log('[FintocLink] Initializing widget with publicKey:', pubKey, 'and webhookUrl:', webhookUrl)
-        if (!pubKey) {
-          console.warn('[FintocLink] WARNING: VITE_FINTOC_PUBLIC_KEY is undefined or empty!')
-        }
+        console.log('[FintocLink] Initializing widget with widgetToken:', widgetToken)
 
         widget = Fintoc.create({
-          publicKey: pubKey,
-          product: 'movements',
-          holderType: 'individual',
-          country: 'cl',
-          webhookUrl,
+          widgetToken,
           onSuccess: (data: any) => {
-            // Fintoc passes a link object where the token is typically in the id or token field
-            const token = data?.id || data?.token || data?.link_token || data?.link?.id
+            const token = data?.exchange_token || data?.id || data?.token || data?.link_token || data?.link?.id
             if (token) {
               onSuccessRef.current(token)
             } else {
-              console.error('[FintocLink] Failed to find link token in onSuccess payload:', data)
+              console.error('[FintocLink] Failed to find link/exchange token in onSuccess payload:', data)
               onExitRef.current()
             }
           },

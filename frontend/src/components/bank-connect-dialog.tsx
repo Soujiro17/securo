@@ -27,7 +27,7 @@ export function BankConnectDialog({
   const [connectToken, setConnectToken] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open || provider === 'fintoc') {
+    if (!open) {
       setConnectToken(null)
       return
     }
@@ -76,8 +76,10 @@ export function BankConnectDialog({
   if (!open) return null
 
   if (provider === 'fintoc') {
+    if (!connectToken) return null
     return (
       <FintocConnectWidget
+        widgetToken={connectToken}
         onSuccess={(linkToken) => handleSuccess({ item: { id: linkToken } })}
         onExit={handleClose}
       />

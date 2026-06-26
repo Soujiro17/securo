@@ -150,14 +150,24 @@ async def test_get_oauth_url_raises_not_implemented():
 
 @pytest.mark.asyncio
 async def test_create_connect_token_success():
-    """create_connect_token is a stub returning empty access_token and making no calls."""
+    """create_connect_token calls /v1/link_intents and returns the widget_token."""
     def handler(request: httpx.Request) -> httpx.Response:
-        raise AssertionError("Should not make any API calls")
+        assert request.method == "POST"
+        assert "/link_intents" in str(request.url)
+        body = request.read().decode("utf-8")
+        assert "movements" in body
+        return httpx.Response(
+            201,
+            json={
+                "id": "li_12345",
+                "widget_token": "widget_tok_abc123",
+            },
+        )
 
     provider = FintocProvider()
     with _patched_client(handler):
         result = await provider.create_connect_token("user-1")
-    assert result.access_token == ""
+    assert result.access_token == "widget_tok_abc123"
 
 
 # ---- handle_oauth_callback --------------------------------------------------
@@ -165,34 +175,37 @@ async def test_create_connect_token_success():
 
 @pytest.mark.asyncio
 async def test_handle_oauth_callback_success():
-    """link_token -> GET /accounts -> ConnectionData with accounts."""
-    import json
+    """exchange_token -> POST /accounts/exchange -> ConnectionData with accounts."""
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "GET"
-        assert "/accounts" in str(request.url)
-        assert request.url.params.get("link_token") == "lt_test_link_token"
+        assert request.method == "POST"
+        assert "/accounts/exchange" in str(request.url)
+        assert request.url.params.get("exchange_token") == "lt_test_link_token"
         return httpx.Response(
             200,
-            json=[
-                {
-                    "id": "acc-cl-1",
-                    "name": "Cuenta Vista",
-                    "official_name": "Cuenta Vista BancoEstado",
-                    "type": "vista_account",
-                    "currency": "CLP",
-                    "balance": {"available": 350000, "current": 350000},
-                    "institution": {"name": "BancoEstado"},
-                }
-            ],
+            json={
+                "id": "link_123",
+                "link_token": "lt_test_link_token_perm",
+                "institution": {"name": "BancoEstado"},
+                "accounts": [
+                    {
+                        "id": "acc-cl-1",
+                        "name": "Cuenta Vista",
+                        "official_name": "Cuenta Vista BancoEstado",
+                        "type": "vista_account",
+                        "currency": "CLP",
+                        "balance": {"available": 350000, "current": 350000},
+                    }
+                ],
+            },
         )
 
     provider = FintocProvider()
     with _patched_client(handler):
         conn = await provider.handle_oauth_callback("lt_test_link_token")
 
-    assert conn.external_id == "lt_test_link_token"
+    assert conn.external_id == "link_123"
     assert conn.institution_name == "BancoEstado"
-    assert conn.credentials["link_token"] == "lt_test_link_token"
+    assert conn.credentials["link_token"] == "lt_test_link_token_perm"
     assert len(conn.accounts) == 1
     acc = conn.accounts[0]
     assert acc.external_id == "acc-cl-1"
@@ -204,19 +217,23 @@ async def test_handle_oauth_callback_success():
 async def test_handle_oauth_callback_fallback_institution_name():
     """Falls back to 'Chilean Bank' when institution field is absent."""
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "GET"
-        assert "/accounts" in str(request.url)
+        assert request.method == "POST"
+        assert "/accounts/exchange" in str(request.url)
         return httpx.Response(
             200,
-            json=[
-                {
-                    "id": "acc-1",
-                    "name": "Cuenta",
-                    "type": "checking_account",
-                    "currency": "CLP",
-                    "balance": {"available": 1000},
-                }
-            ],
+            json={
+                "id": "link_123",
+                "link_token": "lt_perm",
+                "accounts": [
+                    {
+                        "id": "acc-1",
+                        "name": "Cuenta",
+                        "type": "checking_account",
+                        "currency": "CLP",
+                        "balance": {"available": 1000},
+                    }
+                ],
+            },
         )
 
     provider = FintocProvider()
