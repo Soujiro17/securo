@@ -27,6 +27,7 @@ export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocCo
         console.log('[FintocLink] Initializing widget with widgetToken:', widgetToken)
 
         widget = Fintoc.create({
+          publicKey: import.meta.env.VITE_FINTOC_PUBLIC_KEY,
           widgetToken,
           onSuccess: (data: any) => {
             const token = data?.exchange_token || data?.id || data?.token || data?.link_token || data?.link?.id
