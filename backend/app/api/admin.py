@@ -1,19 +1,11 @@
 import uuid
 import re
-from datetime import date, timedelta
-from typing import Any
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select
-
 from app.core.auth import UserManager, current_active_user, current_superuser, get_user_manager
-from app.core.config import get_settings
 from app.core.database import get_async_session
-from app.models.account import Account
-from app.models.bank_connection import BankConnection
 from app.models.user import User
 from app.schemas.admin import (
     AdminUserCreate,
@@ -24,8 +16,6 @@ from app.schemas.admin import (
     AppSettingUpdate,
 )
 from app.services import admin_service
-
-_FINTOC_API_BASE = "https://api.fintoc.com/v1"
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -220,102 +210,3 @@ async def check_registration_enabled(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Registration is currently disabled",
         )
-
-
-# ---------------------------------------------------------------------------
-# Fintoc debug endpoints — superuser only, never exposed in production docs
-# ---------------------------------------------------------------------------
-
-
-@router.get("/debug/fintoc/connections", tags=["debug"])
-async def debug_fintoc_connections(
-    _user: User = Depends(current_active_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> Any:
-    """List all Fintoc bank connections with their link_token and associated account IDs.
-
-    Use this to find the link_token and account_id values needed for the other debug endpoints.
-    """
-    result = await session.execute(
-        select(BankConnection).where(BankConnection.provider == "fintoc")
-    )
-    connections = result.scalars().all()
-
-    output = []
-    for conn in connections:
-        accounts_result = await session.execute(
-            select(Account).where(Account.connection_id == conn.id)
-        )
-        accounts = accounts_result.scalars().all()
-        output.append({
-            "connection_id": str(conn.id),
-            "institution_name": conn.institution_name,
-            "status": conn.status,
-            "link_token": (conn.credentials or {}).get("link_token"),
-            "last_sync_at": conn.last_sync_at.isoformat() if conn.last_sync_at else None,
-            "accounts": [
-                {
-                    "account_id": acc.external_id,
-                    "name": acc.name,
-                    "type": acc.type,
-                    "currency": acc.currency,
-                }
-                for acc in accounts
-            ],
-        })
-    return output
-
-
-@router.get("/debug/fintoc/accounts", tags=["debug"])
-async def debug_fintoc_accounts(
-    link_token: str = Query(..., description="Fintoc link_token to test"),
-    _user: User = Depends(current_superuser),
-) -> Any:
-    """Call Fintoc GET /accounts directly and return the raw response.
-
-    Use this to confirm which accounts are visible for a given live link_token
-    and to compare account IDs against what's stored in the database.
-    """
-    headers = {"Authorization": get_settings().fintoc_secret_key}
-    async with httpx.AsyncClient(headers=headers, timeout=30) as client:
-        response = await client.get(
-            f"{_FINTOC_API_BASE}/accounts",
-            params={"link_token": link_token},
-        )
-    return {
-        "status_code": response.status_code,
-        "headers": dict(response.headers),
-        "body": response.json() if response.headers.get("content-type", "").startswith("application/json") else response.text,
-    }
-
-
-@router.get("/debug/fintoc/movements", tags=["debug"])
-async def debug_fintoc_movements(
-    link_token: str = Query(..., description="Fintoc link_token to test"),
-    account_id: str = Query(..., description="Fintoc account ID (external_id)"),
-    since: str = Query(None, description="ISO date YYYY-MM-DD (default: 90 days ago)"),
-    cursor: str = Query(None, description="Pagination cursor for next page"),
-    _user: User = Depends(current_superuser),
-) -> Any:
-    """Call Fintoc GET /accounts/{account_id}/movements directly and return the raw response.
-
-    Use this to confirm whether movements are returned for a specific account
-    with live keys, and to inspect the raw payload structure.
-    """
-    since_date = since or (date.today() - timedelta(days=90)).isoformat()
-    params: dict = {"link_token": link_token, "since": since_date}
-    if cursor:
-        params["cursor"] = cursor
-
-    headers = {"Authorization": get_settings().fintoc_secret_key}
-    async with httpx.AsyncClient(headers=headers, timeout=60) as client:
-        response = await client.get(
-            f"{_FINTOC_API_BASE}/accounts/{account_id}/movements",
-            params=params,
-        )
-    return {
-        "status_code": response.status_code,
-        "request_url": str(response.url),
-        "headers": dict(response.headers),
-        "body": response.json() if response.headers.get("content-type", "").startswith("application/json") else response.text,
-    }
