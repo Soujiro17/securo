@@ -2,11 +2,12 @@ import { useEffect, useRef } from 'react'
 import { getFintoc } from '@fintoc/fintoc-js'
 
 interface FintocConnectWidgetProps {
-  onSuccess: (linkToken: string) => void
+  widgetToken: string
+  onSuccess: (exchangeToken: string) => void
   onExit: () => void
 }
 
-export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetProps) {
+export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocConnectWidgetProps) {
   const onSuccessRef = useRef(onSuccess)
   const onExitRef = useRef(onExit)
 
@@ -25,12 +26,13 @@ export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetPr
 
         widget = Fintoc.create({
           publicKey: import.meta.env.VITE_FINTOC_PUBLIC_KEY,
-          product: 'movements',
-          holderType: 'individual',
-          country: 'cl',
-          onSuccess: (data: { link_token: string }) => {
-            if (data?.link_token) {
-              onSuccessRef.current(data.link_token)
+          widgetToken,
+          onSuccess: (data: any) => {
+            // The Fintoc SDK delivers the Link Intent object in camelCase.
+            // exchangeToken is the one-time token that must be exchanged server-side.
+            const token = data?.exchangeToken
+            if (token) {
+              onSuccessRef.current(token)
             } else {
               onExitRef.current()
             }
@@ -49,7 +51,7 @@ export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetPr
       active = false
       widget?.destroy?.()
     }
-  }, [])
+  }, [widgetToken])
 
   return null
 }

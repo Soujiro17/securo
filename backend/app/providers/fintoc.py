@@ -121,34 +121,48 @@ class FintocProvider(BankProvider):
         client_user_id: str,
         item_id: str | None = None,
     ) -> ConnectTokenData:
-        # The movements widget is initialized with publicKey only — no server token needed.
-        return ConnectTokenData(access_token="")
+        """Create a FintocLink widget token by calling the Link Intent endpoint."""
+        async with httpx.AsyncClient(headers=self._get_headers(), timeout=30) as client:
+            response = await client.post(
+                f"{FINTOC_API_BASE}/link_intents",
+                json={
+                    "product": "movements",
+                    "holder_type": "individual",
+                    "country": "cl",
+                },
+            )
+            self._raise_for_fintoc(response)
+            data = response.json()
+        return ConnectTokenData(access_token=data["widget_token"])
 
     async def handle_oauth_callback(self, code: str) -> ConnectionData:
-        """Accept the link_token from the Fintoc widget and fetch accounts directly.
+        """Exchange the Fintoc widget exchange_token for a permanent link_token.
 
-        `code` is the link_token delivered by the widget's onSuccess callback.
-        No token exchange step is needed for the movements product.
+        `code` is the exchange_token delivered by the widget's onSuccess callback
+        (linkIntent.exchangeToken). The exchange endpoint returns the full Link object
+        including link_token, accounts, and institution.
         """
         async with httpx.AsyncClient(headers=self._get_headers(), timeout=30) as client:
             response = await client.get(
-                f"{FINTOC_API_BASE}/accounts",
-                params={"link_token": code},
+                f"{FINTOC_API_BASE}/links/exchange",
+                params={"exchange_token": code},
             )
             self._raise_for_fintoc(response)
-            raw_accounts = response.json()
+            link_data = response.json()
 
+        raw_accounts = link_data.get("accounts", [])
         accounts = [_build_account_data(acc) for acc in raw_accounts]
 
-        institution_name = "Chilean Bank"
-        if raw_accounts:
-            inst = raw_accounts[0].get("institution") or {}
-            institution_name = inst.get("name") or "Chilean Bank"
+        inst = link_data.get("institution") or {}
+        institution_name = inst.get("name") or "Chilean Bank"
+
+        link_token = link_data["link_token"]
+        link_id = link_data["id"]
 
         return ConnectionData(
-            external_id=code,
+            external_id=link_id,
             institution_name=institution_name,
-            credentials={"link_token": code},
+            credentials={"link_token": link_token},
             accounts=accounts,
         )
 

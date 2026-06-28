@@ -32,9 +32,6 @@ export function BankConnectDialog({
       return
     }
 
-    // Fintoc widget initialises with publicKey only — no server token needed.
-    if (provider === 'fintoc') return
-
     let cancelled = false
     const fetchToken = async () => {
       try {
@@ -79,9 +76,11 @@ export function BankConnectDialog({
   if (!open) return null
 
   if (provider === 'fintoc') {
+    if (!connectToken) return null
     return (
       <FintocConnectWidget
-        onSuccess={(linkToken) => handleSuccess({ item: { id: linkToken } })}
+        widgetToken={connectToken}
+        onSuccess={(exchangeToken) => handleSuccess({ item: { id: exchangeToken } })}
         onExit={handleClose}
       />
     )
