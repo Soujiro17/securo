@@ -2,12 +2,11 @@ import { useEffect, useRef } from 'react'
 import { getFintoc } from '@fintoc/fintoc-js'
 
 interface FintocConnectWidgetProps {
-  widgetToken: string
   onSuccess: (linkToken: string) => void
   onExit: () => void
 }
 
-export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocConnectWidgetProps) {
+export function FintocConnectWidget({ onSuccess, onExit }: FintocConnectWidgetProps) {
   const onSuccessRef = useRef(onSuccess)
   const onExitRef = useRef(onExit)
 
@@ -24,17 +23,15 @@ export function FintocConnectWidget({ widgetToken, onSuccess, onExit }: FintocCo
       .then((Fintoc) => {
         if (!active || !Fintoc) return
 
-        console.log('[FintocLink] Initializing widget with widgetToken:', widgetToken)
-
         widget = Fintoc.create({
           publicKey: import.meta.env.VITE_FINTOC_PUBLIC_KEY,
-          widgetToken,
-          onSuccess: (data: any) => {
-            const token = data?.exchange_token || data?.id || data?.token || data?.link_token || data?.link?.id
-            if (token) {
-              onSuccessRef.current(token)
+          product: 'movements',
+          holderType: 'individual',
+          country: 'cl',
+          onSuccess: (data: { link_token: string }) => {
+            if (data?.link_token) {
+              onSuccessRef.current(data.link_token)
             } else {
-              console.error('[FintocLink] Failed to find link/exchange token in onSuccess payload:', data)
               onExitRef.current()
             }
           },
