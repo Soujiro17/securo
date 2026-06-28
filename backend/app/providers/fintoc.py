@@ -121,49 +121,34 @@ class FintocProvider(BankProvider):
         client_user_id: str,
         item_id: str | None = None,
     ) -> ConnectTokenData:
-        """Create a FintocLink widget token by calling the Link Intent endpoint."""
-        async with httpx.AsyncClient(headers=self._get_headers(), timeout=30) as client:
-            response = await client.post(
-                f"{FINTOC_API_BASE}/link_intents",
-                json={
-                    "product": "movements",
-                    "holder_type": "individual",
-                    "country": "cl",
-                },
-            )
-            self._raise_for_fintoc(response)
-            data = response.json()
-        return ConnectTokenData(access_token=data["widget_token"])
+        # The movements widget is initialized with publicKey only — no server token needed.
+        return ConnectTokenData(access_token="")
 
     async def handle_oauth_callback(self, code: str) -> ConnectionData:
-        """Process the FintocLink exchange_token directly.
+        """Accept the link_token from the Fintoc widget and fetch accounts directly.
 
-        `code` is the exchange_token returned by the FintocLink widget onSuccess
-        callback. We POST to the exchange endpoint using this token to retrieve the
-        full Link object containing the link_token, accounts, and institution.
+        `code` is the link_token delivered by the widget's onSuccess callback.
+        No token exchange step is needed for the movements product.
         """
         async with httpx.AsyncClient(headers=self._get_headers(), timeout=30) as client:
             response = await client.get(
-                f"{FINTOC_API_BASE}/links/exchange",
-                params={"exchange_token": code},
+                f"{FINTOC_API_BASE}/accounts",
+                params={"link_token": code},
             )
             self._raise_for_fintoc(response)
-            link_data = response.json()
+            raw_accounts = response.json()
 
-        raw_accounts = link_data.get("accounts", [])
         accounts = [_build_account_data(acc) for acc in raw_accounts]
 
         institution_name = "Chilean Bank"
-        inst = link_data.get("institution") or {}
-        institution_name = inst.get("name") or "Chilean Bank"
-
-        link_token = link_data["link_token"]
-        link_id = link_data["id"]
+        if raw_accounts:
+            inst = raw_accounts[0].get("institution") or {}
+            institution_name = inst.get("name") or "Chilean Bank"
 
         return ConnectionData(
-            external_id=link_id,
+            external_id=code,
             institution_name=institution_name,
-            credentials={"link_token": link_token},
+            credentials={"link_token": code},
             accounts=accounts,
         )
 
