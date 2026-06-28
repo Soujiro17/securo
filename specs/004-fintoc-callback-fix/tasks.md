@@ -29,9 +29,9 @@ T005 and T006 are safety checks; T007–T008 are end-to-end validation.
 >
 > **Blocks**: All frontend work (the frontend callback hits this backend code).
 
-- [x] T001 Fix `create_connect_token` in `backend/app/providers/fintoc.py` to return a no-op `ConnectTokenData(access_token="")` without making any HTTP request to Fintoc. Remove or comment out the `POST /link_intents` call. Keep the method signature intact to satisfy the `BankProvider` ABC.
+- [x] T001 Keep `create_connect_token` in `backend/app/providers/fintoc.py` calling `POST /link_intents` to obtain a `widget_token`. The Fintoc JS SDK REQUIRES a server-issued `widget_token` — without one it calls an internal endpoint that requires a `callback_url` and fails. *(Earlier attempt to make this a no-op was reverted after reading docs.)*
 
-- [x] T002 Fix `handle_oauth_callback` in `backend/app/providers/fintoc.py` so it treats `code` as the `link_token` directly. Remove the `GET /links/exchange?exchange_token=code` step. The method should: (1) call `GET /v1/accounts?link_token={code}` with `Authorization: {FINTOC_SECRET_KEY}` header, (2) build `AccountData` list via the existing `_build_account_data` helper, (3) extract `institution_name` from `accounts[0]["institution"]["name"]` with fallback `"Chilean Bank"` if accounts list is empty, (4) return `ConnectionData(external_id=code, institution_name=institution_name, credentials={"link_token": code}, accounts=accounts)`. Remove any imports or helpers used only by the old exchange flow.
+- [x] T002 Clean up `handle_oauth_callback` in `backend/app/providers/fintoc.py`: keep `GET /links/exchange?exchange_token=code` (correct endpoint), remove duplicate `institution_name` assignment, read `institution_name` from `link_data.get("institution")["name"]` at the Link object level. The exchange endpoint returns the full Link object including `link_token`, `accounts`, and `institution`.
 
 ---
 
@@ -43,20 +43,11 @@ T005 and T006 are safety checks; T007–T008 are end-to-end validation.
 > credentials from `specs/003-fix-fintoc-integration/quickstart.md`), verify accounts list
 > refreshes with ≥1 account and no error toast.
 
-- [x] T003 [US1] Rewrite `FintocConnectWidget` in `frontend/src/hooks/use-fintoc-widget.ts`:
-  - Remove `widgetToken: string` from the props interface and destructured params.
-  - In `Fintoc.create({...})`, remove the `widgetToken` field entirely.
-  - Add `product: "movements"`, `holderType: "individual"`, `country: "cl"` to the `Fintoc.create()` call.
-  - Replace the multi-fallback `onSuccess` callback `(data: any) => { const token = data?.exchange_token || data?.id || ...` with `(data: { link_token: string }) => { if (data?.link_token) { onSuccessRef.current(data.link_token) } else { onExitRef.current() } }`.
-  - Remove the `console.log` that logged `widgetToken`.
+- [x] T003 [US1] Fix `onSuccess` in `frontend/src/hooks/use-fintoc-widget.ts`: replace the multi-fallback chain `data?.exchange_token || data?.id || ...` with `data?.exchangeToken` (camelCase). The Fintoc JS SDK returns the Link Intent object in camelCase — `exchange_token` (snake_case) is always `undefined`, causing the fallback to capture `data.id` (the Link Intent ID like `li_xxx`), which the backend cannot exchange. Keep `widgetToken` prop and all other code unchanged.
 
-- [x] T004 [US1] Fix the Fintoc rendering path in `frontend/src/components/bank-connect-dialog.tsx`:
-  - In the `if (provider === 'fintoc')` branch, remove the `if (!connectToken) return null` guard (the widget no longer needs a server-issued token).
-  - Remove `widgetToken={connectToken}` from the `<FintocConnectWidget ...>` JSX — the component no longer accepts this prop.
-  - Ensure `<FintocConnectWidget>` renders immediately when `provider === 'fintoc'`, regardless of `connectToken` state.
-  - Keep `onSuccess` and `onExit` handlers unchanged.
+- [x] T004 [US1] Restore `frontend/src/components/bank-connect-dialog.tsx` Fintoc path: keep `if (!connectToken) return null` guard, keep `widgetToken={connectToken}` prop. *(Earlier attempt to remove these was reverted.)*
 
-- [x] T005 [P] [US1] Audit `frontend/src/components/bank-connect-dialog.tsx` to confirm the `fetchToken` / `getConnectToken` call path is NOT invoked for Fintoc. Trace how `connectToken` gets set (via `useEffect` + `fetchToken`) and ensure the Fintoc branch short-circuits before that effect runs, OR that the effect is guarded by `provider !== 'fintoc'`. If `fetchToken` is called for Fintoc, add a guard: `if (provider === 'fintoc') return` at the top of the `fetchToken` call site.
+- [x] T005 [P] [US1] Confirmed: `fetchToken` runs correctly for Fintoc (calls `getConnectToken('fintoc')` → `POST /link_intents` server-side → `widget_token`). No guard needed. The server token fetch is required.
 
 ---
 
