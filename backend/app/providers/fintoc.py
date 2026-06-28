@@ -39,6 +39,8 @@ def _map_account_type(fintoc_type: str) -> str:
         "savings_account": "savings",
         "vista_account": "checking",
         "sight_account": "checking",
+        "credit_card": "credit_card",
+        "line_of_credit": "credit_card",
     }
     return mapping.get(fintoc_type, "checking")
 
@@ -73,7 +75,7 @@ def _build_transaction_data(mov: dict) -> TransactionData:
     CLP amounts from Fintoc are whole integer pesos — no scaling needed.
     Charge = money leaving the account (debit); deposit = money entering (credit).
     """
-    tx_type = "debit" if mov.get("type") == "charge" else "credit"
+    tx_type = "debit" if Decimal(str(mov.get("amount", 0))) < 0 else "credit"
     # post_date is the settlement date; fall back to transaction_date if absent.
     tx_date_str = mov.get("post_date") or mov.get("transaction_date")
     try:
