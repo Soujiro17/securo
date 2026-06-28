@@ -229,7 +229,7 @@ async def check_registration_enabled(
 
 @router.get("/debug/fintoc/connections", tags=["debug"])
 async def debug_fintoc_connections(
-    _user: User = Depends(current_superuser),
+    _user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Any:
     """List all Fintoc bank connections with their link_token and associated account IDs.

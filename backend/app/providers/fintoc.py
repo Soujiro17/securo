@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
@@ -53,6 +54,17 @@ def _build_account_data(acc: dict) -> AccountData:
         balance=balance,
         currency=(acc.get("currency") or "CLP").upper(),
     )
+
+
+def _parse_next_link(link_header: str) -> str | None:
+    """Extract the URL with rel="next" from an RFC 5988 Link header."""
+    for part in link_header.split(","):
+        part = part.strip()
+        if 'rel="next"' in part or "rel=next" in part:
+            url_part = part.split(";")[0].strip()
+            if url_part.startswith("<") and url_part.endswith(">"):
+                return url_part[1:-1]
+    return None
 
 
 def _build_transaction_data(mov: dict) -> TransactionData:
@@ -205,11 +217,15 @@ class FintocProvider(BankProvider):
                 movements = body if isinstance(body, list) else body.get("data", [])
                 results.extend(_build_transaction_data(mov) for mov in movements)
 
-                # Fintoc paginates via next_cursor in the response envelope.
-                next_cursor = None if isinstance(body, list) else body.get("next_cursor")
-                if not next_cursor:
+                # Fintoc paginates via RFC 5988 Link header (rel="next"), not a body cursor.
+                next_url = _parse_next_link(response.headers.get("link", ""))
+                if not next_url:
                     break
-                params = {"link_token": link_token, "cursor": next_cursor}
+                # Extract the page number from the next URL and carry it forward.
+                page_match = re.search(r"[?&]page=(\d+)", next_url)
+                if not page_match:
+                    break
+                params = {**params, "page": page_match.group(1)}
 
         return results
 
