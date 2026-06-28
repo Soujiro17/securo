@@ -189,7 +189,7 @@ class FintocProvider(BankProvider):
             )
             self._raise_for_fintoc(response)
             raw = response.json()
-            logger.debug("Fintoc accounts raw response: %s", raw)
+            logger.info("Fintoc accounts raw response: %s", raw)
             return [_build_account_data(acc) for acc in raw]
 
     async def get_transactions(
