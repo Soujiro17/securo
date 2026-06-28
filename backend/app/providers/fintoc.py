@@ -39,6 +39,8 @@ def _map_account_type(fintoc_type: str) -> str:
         "savings_account": "savings",
         "vista_account": "checking",
         "sight_account": "checking",
+        "credit_card": "credit_card",
+        "line_of_credit": "credit_card",
     }
     return mapping.get(fintoc_type, "checking")
 
