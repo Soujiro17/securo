@@ -629,8 +629,9 @@ export const transactions = {
 
 // Payees
 export const payees = {
-  list: async (): Promise<Payee[]> => {
-    const { data } = await api.get('/payees')
+  list: async (params?: { q?: string; type?: string; is_favorite?: boolean } | Record<string, unknown>): Promise<Payee[]> => {
+    const cleanParams = params && !('queryKey' in params) ? params : undefined
+    const { data } = await api.get('/payees', { params: cleanParams })
     return data
   },
   get: async (id: string): Promise<Payee> => {
@@ -794,7 +795,7 @@ export const rules = {
     const { data } = await api.post('/rules', rule)
     return data
   },
-  update: async (id: string, rule: Partial<Rule>): Promise<Rule> => {
+  update: async (id: string, rule: Partial<Rule>): Promise<Rule & { applied_count: number }> => {
     const { data } = await api.patch(`/rules/${id}`, rule)
     return data
   },
